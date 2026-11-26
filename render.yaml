@@ -1,66 +1,73 @@
-# Render = reserbang kopya ng CareLink sa libreng address (onrender.com).
-#   Frontend: https://pupbc-carelink.onrender.com
-#   Backend:  https://pupbc-carelink-api.onrender.com
-# Ang pangunahing site (www.pupbccarelink.org) ay nasa cPanel ng z.com.
-# Parehong Supabase database ang gamit ng dalawa.
+# PUPBC CareLink — Render Blueprint (Staging + Production)
+#
+# Completely isolated environments:
+#   - STAGING (branch: staging) -> NEW Render Staging services + NEW Supabase Staging DB
+#       Frontend: https://pupbc-carelink-staging.onrender.com
+#       Backend:  https://pupbc-carelink-staging-api.onrender.com
+#   - PRODUCTION (branch: main) -> NEW Render Production services + NEW Supabase Production DB
+#       Frontend: https://pupbc-carelink-prod.onrender.com
+#       Backend:  https://pupbc-carelink-prod-api.onrender.com
+#   - LOCALHOST -> Local machine (XAMPP MySQL / Docker), never touches Render or Supabase.
+#
+# Full setup guide: docs/RENDER_DEPLOYMENT.md
+
 services:
-  # Backend: Laravel sa Docker (walang native PHP runtime ang Render).
+  # ===========================================================================
+  # STAGING ENVIRONMENT (branch: staging -> Supabase Staging DB)
+  # ===========================================================================
   - type: web
-    name: pupbc-carelink-api
+    name: pupbc-carelink-staging-api
     runtime: docker
-    region: singapore # Supabase session pooler: Singapore (ap-southeast-1)
+    branch: staging
+    region: singapore # Match Supabase Staging region (ap-southeast-1)
     plan: free
-    # Relative sa repo root ang mga path na ito.
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     healthCheckPath: /api/health
     envVars:
       - key: APP_NAME
-        value: "PUPBC CareLink"
+        value: "PUPBC CareLink (Staging)"
       - key: APP_ENV
-        value: production
+        value: staging
       - key: APP_DEBUG
         value: "false"
       - key: APP_KEY
-        # Format: base64:xxxx (tingnan ang docs/RENDER_DEPLOYMENT.md).
-        sync: false # secret: set in the Render dashboard
+        sync: false # secret: unique key for Staging (base64:...)
       - key: APP_URL
-        value: https://pupbc-carelink-api.onrender.com
+        value: https://pupbc-carelink-staging-api.onrender.com
       - key: FRONTEND_URL
-        value: https://pupbc-carelink.onrender.com
+        value: https://pupbc-carelink-staging.onrender.com
       - key: LOG_CHANNEL
         value: stderr
+      - key: LOG_LEVEL
+        value: info
 
-      # Supabase session pooler (port 5432). Iwas sa prepared-statement errors ng 6543.
-      # Same region as this service: Southeast Asia (Singapore), ap-southeast-1.
-      # Naming: SUPABASE_DB_* = Supabase, DB_* = local MySQL only (not used here).
-      # DB_CONNECTION is the switch for both: pgsql = Supabase, mysql = MySQL.
+      # NEW Supabase Staging DB (Session pooler on port 5432)
       - key: DB_CONNECTION
         value: pgsql
       - key: SUPABASE_DB_HOST
-        sync: false # secret: set in the Render dashboard
+        sync: false # secret: Staging Supabase pooler host
       - key: SUPABASE_DB_PORT
         value: "5432"
       - key: SUPABASE_DB_DATABASE
         value: postgres
       - key: SUPABASE_DB_USERNAME
-        sync: false # secret: set in the Render dashboard
+        sync: false # secret: postgres.<staging-project-ref>
       - key: SUPABASE_DB_PASSWORD
-        sync: false # secret: set in the Render dashboard
+        sync: false # secret: Staging Supabase DB password
       - key: SUPABASE_DB_SSLMODE
         value: require
       - key: SUPABASE_DB_PERSISTENT
         value: "true"
 
       - key: JWT_SECRET
-        sync: false # secret: set in the Render dashboard
+        sync: false # secret: unique JWT secret for Staging
       - key: JWT_TTL
         value: "1440"
       - key: KIOSK_DEVICE_TOKEN
-        # Makikita sa Render dashboard; ito ang ilalagay sa kiosk device.
-        sync: false # secret: set in the Render dashboard
+        sync: false # secret: unique kiosk token for Staging
 
-      # Brevo SMTP. Bina-block ng Render free ang 25/465/587, kaya 2525.
+      # Brevo SMTP (port 2525; Render Free blocks 25/465/587)
       - key: MAIL_MAILER
         value: smtp
       - key: MAIL_HOST
@@ -68,22 +75,24 @@ services:
       - key: MAIL_PORT
         value: "2525"
       - key: MAIL_USERNAME
-        sync: false # secret: set in the Render dashboard
+        sync: false
       - key: MAIL_PASSWORD
-        sync: false # secret: set in the Render dashboard
+        sync: false
       - key: MAIL_ENCRYPTION
         value: tls
       - key: MAIL_FROM_ADDRESS
         value: pupbinancarelink@gmail.com
       - key: MAIL_FROM_NAME
-        value: "PUPBC CareLink"
+        value: "PUPBC CareLink (Staging)"
       - key: MAIL_TIMEOUT
         value: "10"
-      # Staging switch: kapag true, lahat ng email ay napupunta sa test recipient.
+      # Staging safety switch: reroute all outgoing emails to EMAIL_TEST_RECIPIENT.
       - key: EMAIL_TEST_MODE
-        value: "false"
+        value: "true"
       - key: EMAIL_TEST_RECIPIENT
         value: delivered@resend.dev
+      - key: NURSE_EMAIL_NOTIFICATIONS
+        value: "false"
 
       - key: CACHE_DRIVER
         value: file
@@ -97,10 +106,10 @@ services:
         value: local
 
       - key: SANCTUM_STATEFUL_DOMAINS
-        value: pupbc-carelink.onrender.com
+        value: pupbc-carelink-staging.onrender.com
 
       - key: SEED_NURSE_PASSWORD
-        sync: false # secret: set in the Render dashboard
+        sync: false # secret: Staging nurse password
 
       - key: SLOT_MAX
         value: "10"
@@ -120,9 +129,9 @@ services:
       - key: AUTH_RATE_LIMIT
         value: "10"
 
-      # Clinic assistant (AI chatbot) - Ollama provider. Get API key at https://ollama.com
+      # AI Chatbot (Ollama + Gemini fallback)
       - key: OLLAMA_API_KEY
-        sync: false # secret: set in the Render dashboard
+        sync: false
       - key: OLLAMA_BASE_URL
         value: "https://ollama.com/v1"
       - key: OLLAMA_MODEL
@@ -135,9 +144,8 @@ services:
         value: "30"
       - key: OLLAMA_MAX_OUTPUT_TOKENS
         value: "1024"
-      # Gemini: fallback when Ollama cannot answer (no credits, rate limit, outage).
       - key: GEMINI_API_KEY
-        sync: false # secret: set in the Render dashboard
+        sync: false
       - key: GEMINI_MODEL
         value: "gemini-3.5-flash-lite"
       - key: GEMINI_FALLBACK_MODELS
@@ -150,33 +158,26 @@ services:
         value: "5"
       - key: CHATBOT_DAILY_LIMIT
         value: "15"
-
-      # Public clinic contact address shown by the chatbot.
       - key: CLINIC_EMAIL
         value: pupbinancarelink@gmail.com
 
-  # Frontend: React/Vite bilang static site (libre, hindi natutulog, global CDN).
   - type: web
-    name: pupbc-carelink
+    name: pupbc-carelink-staging
     runtime: static
+    branch: staging
     buildCommand: cd frontend && npm ci && npm run build
     staticPublishPath: ./frontend/dist
     routes:
-      # API: ipinapasa sa Render backend. Sa browser, iisang address ang frontend
-      # at ang API (/api), kaya naipapadala ang login cookie (SameSite=Strict).
-      # Dapat mauna ito sa /* sa ibaba.
       - type: rewrite
         source: /api/*
-        destination: https://pupbc-carelink-api.onrender.com/api/*
-      # SPA: lahat ng ibang path ay ibigay sa index.html para gumana ang React Router.
+        destination: https://pupbc-carelink-staging-api.onrender.com/api/*
       - type: rewrite
         source: /*
         destination: /index.html
     headers:
-      # Security headers (OWASP ZAP). The policy is the one contentSecurityPolicy()
-      # in frontend/vite.config.js puts in index.html as a <meta>, plus
-      # frame-ancestors (header only); keep the two in sync. The API is /api on
-      # this same address. SAMEORIGIN: the print previews frame this site's own pages.
+      - path: /*
+        name: X-Robots-Tag
+        value: noindex, nofollow
       - path: /*
         name: X-Frame-Options
         value: SAMEORIGIN
@@ -195,16 +196,208 @@ services:
       - path: /*
         name: Permissions-Policy
         value: camera=(self), microphone=(), geolocation=()
-      # Build files in /assets are content-hashed, so a changed file gets a new
-      # name; browsers can keep the old ones for a year without revalidating.
       - path: /assets/*
         name: Cache-Control
         value: public, max-age=31536000, immutable
     envVars:
-      - key: NODE_VERSION # Vite 8 needs Node 20.19+ / 22.12+
+      - key: NODE_VERSION
+        value: "22"
+      - key: VITE_API_URL
+        value: /api
+      - key: VITE_APP_NAME
+        value: "PUPBC CareLink (Staging)"
+      - key: VITE_APP_ENV
+        value: staging
+
+  # ===========================================================================
+  # PRODUCTION ENVIRONMENT (branch: main -> Supabase Production DB)
+  # ===========================================================================
+  - type: web
+    name: pupbc-carelink-prod-api
+    runtime: docker
+    branch: main
+    region: singapore # Match Supabase Production region (ap-southeast-1)
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_NAME
+        value: "PUPBC CareLink"
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        sync: false # secret: unique key for Production (never reuse Staging key)
+      - key: APP_URL
+        value: https://pupbc-carelink-prod-api.onrender.com
+      - key: FRONTEND_URL
+        value: https://pupbc-carelink-prod.onrender.com
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: warning
+
+      # NEW Supabase Production DB (Session pooler on port 5432)
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: SUPABASE_DB_HOST
+        sync: false # secret: Production Supabase pooler host
+      - key: SUPABASE_DB_PORT
+        value: "5432"
+      - key: SUPABASE_DB_DATABASE
+        value: postgres
+      - key: SUPABASE_DB_USERNAME
+        sync: false # secret: postgres.<prod-project-ref>
+      - key: SUPABASE_DB_PASSWORD
+        sync: false # secret: Production Supabase DB password
+      - key: SUPABASE_DB_SSLMODE
+        value: require
+      - key: SUPABASE_DB_PERSISTENT
+        value: "true"
+
+      - key: JWT_SECRET
+        sync: false # secret: unique JWT secret for Production
+      - key: JWT_TTL
+        value: "1440"
+      - key: KIOSK_DEVICE_TOKEN
+        sync: false # secret: unique kiosk token for Production
+
+      # Brevo SMTP (port 2525; Render Free blocks 25/465/587)
+      - key: MAIL_MAILER
+        value: smtp
+      - key: MAIL_HOST
+        value: smtp-relay.brevo.com
+      - key: MAIL_PORT
+        value: "2525"
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_ENCRYPTION
+        value: tls
+      - key: MAIL_FROM_ADDRESS
+        value: pupbinancarelink@gmail.com
+      - key: MAIL_FROM_NAME
+        value: "PUPBC CareLink"
+      - key: MAIL_TIMEOUT
+        value: "10"
+      - key: EMAIL_TEST_MODE
+        value: "false"
+      - key: EMAIL_TEST_RECIPIENT
+        value: delivered@resend.dev
+      - key: NURSE_EMAIL_NOTIFICATIONS
+        value: "true"
+
+      - key: CACHE_DRIVER
+        value: file
+      - key: SESSION_DRIVER
+        value: file
+      - key: SESSION_LIFETIME
+        value: "120"
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: FILESYSTEM_DRIVER
+        value: local
+
+      - key: SANCTUM_STATEFUL_DOMAINS
+        value: pupbc-carelink-prod.onrender.com
+
+      - key: SEED_NURSE_PASSWORD
+        sync: false # secret: strong Production nurse password
+
+      - key: SLOT_MAX
+        value: "10"
+      - key: CLINIC_OPEN_TIME
+        value: "08:00"
+      - key: CLINIC_CLOSE_TIME
+        value: "17:00"
+      - key: LUNCH_START
+        value: "12:00"
+      - key: LUNCH_END
+        value: "13:00"
+
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "60"
+      - key: KIOSK_RATE_LIMIT
+        value: "30"
+      - key: AUTH_RATE_LIMIT
+        value: "10"
+
+      # AI Chatbot (Ollama + Gemini fallback)
+      - key: OLLAMA_API_KEY
+        sync: false
+      - key: OLLAMA_BASE_URL
+        value: "https://ollama.com/v1"
+      - key: OLLAMA_MODEL
+        value: "gemma4:31b"
+      - key: OLLAMA_FALLBACK_MODELS
+        value: "gemma4:31b"
+      - key: OLLAMA_RATE_LIMIT_COOLDOWN
+        value: "60"
+      - key: OLLAMA_TIMEOUT
+        value: "30"
+      - key: OLLAMA_MAX_OUTPUT_TOKENS
+        value: "1024"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: "gemini-3.5-flash-lite"
+      - key: GEMINI_FALLBACK_MODELS
+        value: "gemini-3.1-flash-lite,gemma-4-26b-a4b-it,gemma-4-31b-it"
+      - key: GEMINI_TIMEOUT
+        value: "20"
+      - key: CHATBOT_ENABLED
+        value: "true"
+      - key: CHATBOT_RATE_LIMIT
+        value: "5"
+      - key: CHATBOT_DAILY_LIMIT
+        value: "15"
+      - key: CLINIC_EMAIL
+        value: pupbinancarelink@gmail.com
+
+  - type: web
+    name: pupbc-carelink-prod
+    runtime: static
+    branch: main
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: ./frontend/dist
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://pupbc-carelink-prod-api.onrender.com/api/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=31536000
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(self), microphone=(), geolocation=()
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    envVars:
+      - key: NODE_VERSION
         value: "22"
       - key: VITE_API_URL
         value: /api
       - key: VITE_APP_NAME
         value: "PUPBC CareLink"
-
+      - key: VITE_APP_ENV
+        value: production

@@ -19,21 +19,19 @@ return [
         'OPTIONS',
     ],
 
-'allowed_origins' => [
-    env('APP_URL', 'http://127.0.0.1:8000'),
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    env('FRONTEND_URL', 'http://localhost:5173'),
-    
-    // Existing
-    'https://pupbc-carelink-testing.vercel.app',
-    'https://pup-carelink-testing-frontend.onrender.com',
-    'https://carelink-frontend.onrender.com',
-    
-    // ✅ ADD THESE (production custom domain)
-    'https://www.pupbccarelink.org',
-    'https://pupbccarelink.org',
-],
+    'allowed_origins' => array_values(array_filter(array_unique([
+        // Local development
+        'http://localhost:5173',
+        'https://localhost:5173',
+        'http://127.0.0.1:5173',
+        'https://127.0.0.1:5173',
+        env('APP_URL', 'http://127.0.0.1:8000'),
+        env('FRONTEND_URL', 'http://localhost:5173'),
+
+        // Render Staging & Production frontends
+        'https://pupbc-carelink-staging.onrender.com',
+        'https://pupbc-carelink-prod.onrender.com',
+    ]))),
 
     'allowed_origins_patterns' => [
 

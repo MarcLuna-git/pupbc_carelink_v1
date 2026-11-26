@@ -64,9 +64,9 @@ class SecurityHeaders
             $headers->set('Cache-Control', 'no-store, private');
         }
 
-        // Production is HTTPS only (Render / cPanel). Not sent locally, where
+        // Staging and Production are HTTPS only (Render). Not sent locally, where
         // http://localhost would otherwise be forced to HTTPS for a year.
-        if (app()->environment('production') && str_starts_with((string) config('app.url'), 'https://')) {
+        if (app()->environment(['production', 'staging']) && str_starts_with((string) config('app.url'), 'https://')) {
             $headers->set('Strict-Transport-Security', 'max-age=31536000');
         }
 
